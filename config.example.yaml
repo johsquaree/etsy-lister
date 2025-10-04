@@ -1,0 +1,37 @@
+# Etsy Product Analysis & Recommendation System
+# Configuration Example
+
+# Flask Configuration
+flask:
+  host: "0.0.0.0"
+  port: 5000
+  debug: true
+  environment: "development"
+
+# Data Collection Settings
+scraping:
+  default_delay: 1.0
+  max_pages: 5
+  timeout: 20
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+
+# Model Settings
+models:
+  model_path: "models/"
+  vectorizer_path: "models/"
+
+# Output Settings
+output:
+  output_dir: "outputs/"
+  plots_dir: "outputs/plots/"
+
+# eRank Integration
+erank:
+  keywords_path: "data/erank_keywords.csv"
+  min_volume: 100
+  max_keywords: 200
+
+# Logging
+logging:
+  level: "INFO"
+  file: "logs/app.log"
