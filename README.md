@@ -9,11 +9,13 @@ pip install -r requirements.txt
 ```
 
 ### Hızlı Başlangıç
+
+#### Temel Kullanım
 ```bash
 # Klasörleri hazırla
 python days/day01_setup.py
 
-# Örnek veri çek (kategori/arama URL’si verin)
+# Örnek veri çek (kategori/arama URL'si verin)
 python days/day02_scrape_sample.py --category_url "https://www.etsy.com/search?q=poster"
 
 # Sayfalı çekim (isteğe bağlı)
@@ -24,6 +26,21 @@ python days/day04_clean_data.py --input data/raw/day03_products.csv
 
 # Analiz (özet ve grafik)
 python days/day05_analysis.py --input data/processed/day04_clean.csv
+```
+
+#### Gelişmiş Kullanım
+```bash
+# Gelişmiş scraping (daha fazla veri)
+python days/advanced_scraper.py --url "https://www.etsy.com/search?q=poster" --max-pages 5 --format both
+
+# Async scraping (daha hızlı)
+python days/advanced_scraper.py --url "https://www.etsy.com/search?q=poster" --max-pages 5 --async
+
+# Gelişmiş analiz
+python days/analyze_scraped_data.py --input data/raw/advanced_products.json --output outputs/analysis
+
+# Test et
+python test_advanced_scraper.py
 ```
 
 ### Yapı
