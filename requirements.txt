@@ -10,6 +10,18 @@ flask>=3.0.0
 rich>=13.8.0
 pyyaml>=6.0.0
 
+# Advanced scraping dependencies
+aiohttp>=3.9.0
+selenium>=4.15.0
+webdriver-manager>=4.0.0
+fake-useragent>=1.4.0
+urllib3>=2.0.0
+
+# Data analysis dependencies
+seaborn>=0.13.0
+plotly>=5.17.0
+dash>=2.14.0
+
 # Development dependencies
 pytest>=8.3.0
 mypy>=1.11.0
