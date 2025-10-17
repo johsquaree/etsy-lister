@@ -1,6 +1,13 @@
 import json
 import os
 import random
+import sys
+
+# Ensure project root is on sys.path when running from days/
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 import joblib
 from flask import Flask, render_template_string, request

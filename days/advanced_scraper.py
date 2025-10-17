@@ -58,7 +58,7 @@ def main() -> None:
     parser.add_argument("--delay", type=float, default=1.5, help="Delay between requests (seconds)")
     parser.add_argument("--output", default="data/raw/advanced_products", help="Output file prefix")
     parser.add_argument("--format", choices=["csv", "json", "both"], default="both", help="Output format")
-    parser.add_argument("--async", action="store_true", help="Use async scraping (faster)")
+    parser.add_argument("--async", action="store_true", dest="use_async", help="Use async scraping (faster)")
     parser.add_argument("--categories", help="YAML file with multiple categories")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     
@@ -73,7 +73,7 @@ def main() -> None:
         f"Max Pages: {args.max_pages}\n"
         f"Delay: {args.delay}s\n"
         f"Format: {args.format}\n"
-        f"Async: {args.async}",
+        f"Async: {args.use_async}",
         title="Configuration"
     ))
     
@@ -100,7 +100,7 @@ def main() -> None:
             
         else:
             # Scrape single URL
-            if args.async:
+            if args.use_async:
                 # Async scraping
                 console.print("[yellow]Using async scraping...[/yellow]")
                 scraper = AsyncEtsyScraper(delay_range=(args.delay, args.delay + 0.5))
