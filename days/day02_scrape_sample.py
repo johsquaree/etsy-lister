@@ -13,20 +13,32 @@ def parse_listing_cards(soup: BeautifulSoup) -> List[Dict[str, str]]:
         return items
 
     # Etsy DOM değişebilir; yaygın seçicilerle esnek topla
-    for card in soup.select("li.wt-list-unstyled, li[data-listing-id], li[data-logger-id]"):
-        title_el = card.select_one("h3") or card.select_one(".wt-text-truncate")
-        price_el = card.select_one(".currency-value") or card.select_one(".wt-text-title-01")
+    for card in soup.select("li.wt-list-unstyled, li[data-listing-id], li[data-logger-id], .listing-card, [data-test-id='listing-card']"):
+        title_el = card.select_one("h3") or card.select_one(".wt-text-truncate") or card.select_one("[data-test-id='listing-card-title']")
+        price_el = card.select_one(".currency-value") or card.select_one(".wt-text-title-01") or card.select_one("[data-test-id='price']")
         link_el = card.select_one("a")
-        link = link_el.get("href") if link_el else ""
+        img_el = card.select_one("img")
+        seller_el = card.select_one(".shop-name, [data-test-id='shop-name']")
+        rating_el = card.select_one(".rating, [data-test-id='rating']")
+        review_el = card.select_one(".review-count, [data-test-id='review-count']")
 
+        link = link_el.get("href") if link_el else ""
         title = extract_text(title_el)
         price = extract_text(price_el)
+        image_url = (img_el.get("src") if img_el else "") or (img_el.get("data-src") if img_el else "")
+        seller = extract_text(seller_el)
+        rating = extract_text(rating_el)
+        review_count = extract_text(review_el)
 
         if title or price or link:
             items.append({
                 "title": title,
                 "price": price,
                 "url": link,
+                "image_url": image_url,
+                "seller": seller,
+                "rating": rating,
+                "review_count": review_count,
             })
     return items
 
@@ -41,7 +53,15 @@ def main() -> None:
     rows = parse_listing_cards(soup)
 
     out_path = "data/raw/day02_sample.csv"
-    write_csv(out_path, rows, ["title", "price", "url"])
+    write_csv(out_path, rows, [
+        "title",
+        "price",
+        "url",
+        "image_url",
+        "seller",
+        "rating",
+        "review_count",
+    ])
     print(f"Saved {len(rows)} rows to {out_path}")
 
 
