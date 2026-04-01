@@ -242,50 +242,80 @@ class EtsyScraper:
 
 class AsyncEtsyScraper:
     """Async version of Etsy scraper for better performance."""
-    
+
     def __init__(self, delay_range: Tuple[float, float] = (0.5, 1.5), max_concurrent: int = 5):
         self.delay_range = delay_range
         self.max_concurrent = max_concurrent
         self.semaphore = asyncio.Semaphore(max_concurrent)
-    
+        self._sync_scraper = EtsyScraper(delay_range=delay_range)
+
+    def _add_page_param(self, url: str, page: int) -> str:
+        """Add page parameter to URL."""
+        from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+        parts = urlparse(url)
+        query = parse_qs(parts.query)
+        query["page"] = [str(page)]
+        new_query = urlencode(query, doseq=True)
+        return urlunparse((parts.scheme, parts.netloc, parts.path, parts.params, new_query, parts.fragment))
+
+    def scrape_search_page_from_soup(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
+        """Parse products from an already-fetched BeautifulSoup object."""
+        products = []
+        selectors = [
+            "li.wt-list-unstyled",
+            "li[data-listing-id]",
+            "li[data-logger-id]",
+            ".listing-card",
+            "[data-test-id='listing-card']",
+        ]
+        for selector in selectors:
+            cards = soup.select(selector)
+            if cards:
+                logger.info(f"Found {len(cards)} products with selector: {selector}")
+                for card in cards:
+                    product_data = self._sync_scraper.parse_product_card(card)
+                    if product_data.get("title") or product_data.get("url"):
+                        products.append(product_data)
+                break
+        return products
+
     async def get_page_async(self, session: aiohttp.ClientSession, url: str) -> Optional[BeautifulSoup]:
         """Async page fetching."""
         async with self.semaphore:
             try:
                 await asyncio.sleep(random.uniform(*self.delay_range))
-                
+
                 headers = {
                     "User-Agent": random.choice(USER_AGENTS),
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                     "Accept-Language": "en-US,en;q=0.5",
                 }
-                
-                async with session.get(url, headers=headers, timeout=30) as response:
+
+                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
                     if response.status == 200:
                         html = await response.text()
                         return BeautifulSoup(html, "html.parser")
                     else:
                         logger.warning(f"HTTP {response.status} for {url}")
                         return None
-                        
+
             except Exception as e:
                 logger.error(f"Error fetching {url}: {e}")
                 return None
-    
+
     async def scrape_pages_async(self, urls: List[str]) -> List[Dict[str, Any]]:
         """Scrape multiple pages concurrently."""
         async with aiohttp.ClientSession() as session:
             tasks = [self.get_page_async(session, url) for url in urls]
             soups = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             all_products = []
-            scraper = EtsyScraper()
-            
             for soup in soups:
                 if isinstance(soup, BeautifulSoup):
-                    products = scraper.scrape_search_page_from_soup(soup)
+                    products = self.scrape_search_page_from_soup(soup)
                     all_products.extend(products)
-            
+
             return all_products
 
 

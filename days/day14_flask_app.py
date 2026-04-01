@@ -10,11 +10,18 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 import joblib
-from flask import Flask, render_template_string, request
+from flask import Flask, render_template_string, request, abort
+from flask_wtf.csrf import CSRFProtect
 from scipy.sparse import csr_matrix, hstack
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from src.utils.erank import top_keywords_only
+from src.utils.logger import setup_logging, get_logger
+from src.config import load_config
+
+_cfg = load_config()
+setup_logging(level=_cfg.logging.level, log_file=_cfg.logging.file)
+logger = get_logger(__name__)
 
 HTML = """
 <!doctype html>
@@ -58,9 +65,10 @@ HTML = """
 
     <div class="grid">
       <form method="post" class="card" id="genForm" onsubmit="return startGen()">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <div>
           <label>Başlık</label>
-          <input name="title" placeholder="Örn: Metal Tree of Life Wall Art" required />
+          <input name="title" placeholder="Örn: Metal Tree of Life Wall Art" maxlength="140" required />
           <div class="hint">Özgün anahtar kelimeleri eklemen önerilir.</div>
         </div>
 
@@ -142,29 +150,46 @@ HTML = """
 """
 
 
+ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+
+
+def _root(*parts: str) -> str:
+    """Return an absolute path relative to the project root."""
+    return os.path.join(ROOT, *parts)
+
+
 def load_artifacts():
-    clf = joblib.load("models/day12_logreg.joblib")
-    vec: TfidfVectorizer = joblib.load("models/day12_vectorizer.joblib")
+    clf = None
+    vec = None
     try:
-        with open("outputs/day09_suggestions.txt", "r", encoding="utf-8") as f:
+        clf = joblib.load(_root("models", "day12_logreg.joblib"))
+        vec = joblib.load(_root("models", "day12_vectorizer.joblib"))
+    except FileNotFoundError as e:
+        logger.warning("Model file not found: %s. Predictions will be disabled.", e)
+    except Exception as e:
+        logger.warning("Could not load model: %s. Predictions will be disabled.", e)
+
+    try:
+        with open(_root("outputs", "day09_suggestions.txt"), "r", encoding="utf-8") as f:
             suggestions = [line.strip() for line in f if line.strip()]
     except FileNotFoundError:
         suggestions = []
-    # load top terms for tags/title generation
-    top_terms = []
+
+    top_terms: list = []
     try:
-        with open("outputs/day07_top_terms.json", "r", encoding="utf-8") as f:
+        with open(_root("outputs", "day07_top_terms.json"), "r", encoding="utf-8") as f:
             data = json.load(f)
             top_terms = [t for t, _ in data.get("top_terms", [])]
     except FileNotFoundError:
         pass
+
     return clf, vec, suggestions, top_terms
 
 
 def load_median_price(default_value: float = 0.0) -> float:
     try:
         import pandas as pd
-        df = pd.read_csv("data/processed/day04_clean.csv")
+        df = pd.read_csv(_root("data", "processed", "day04_clean.csv"))
         col = "price_value" if "price_value" in df.columns else "price"
         med = float(df[col].dropna().median())
         if med != med:  # NaN check
@@ -175,6 +200,8 @@ def load_median_price(default_value: float = 0.0) -> float:
 
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", _cfg.flask.secret_key)
+csrf = CSRFProtect(app)
 clf, vec, suggestions_pool, top_terms = load_artifacts()
 
 
@@ -207,7 +234,7 @@ def build_tag_suggestions(limit: int = 13, ptype: str = "metal_wall_art"):
     # Build pool of short tokens
     uni = [t.strip().lower() for t in top_terms if " " not in t]
     # Enrichment via eRank CSV if present
-    erank_path = "data/erank_keywords.csv"
+    erank_path = _root("data", "erank_keywords.csv")
     try:
         erank_terms = top_keywords_only(erank_path, min_volume=100, limit=150)
     except Exception:
@@ -301,14 +328,20 @@ def index():
     best_title = ""
     generated = False
     if request.method == "POST":
-        title = request.form.get("title", "")
+        title = request.form.get("title", "").strip()[:140]
         ptype = request.form.get("ptype", "metal_wall_art")
+        valid_ptypes = {"metal_wall_art", "poster", "jewelry", "bag", "canvas", "mug", "tshirt", "sticker"}
+        if ptype not in valid_ptypes:
+            ptype = "metal_wall_art"
         # Fiyat kullanıcıdan istenmiyor; veri seti medyanını kullan
         price = load_median_price(default_value=0.0)
-        X_text = vec.transform([title])
-        X = hstack([X_text, csr_matrix([[price]])])
-        pred = clf.predict(X)[0]
-        result = int(pred)
+        if clf is not None and vec is not None:
+            X_text = vec.transform([title])
+            X = hstack([X_text, csr_matrix([[price]])])
+            pred = clf.predict(X)[0]
+            result = int(pred)
+        else:
+            result = None
         title_suggestions = build_title_suggestions(k=5, length=6, ptype=ptype)
         tag_suggestions = build_tag_suggestions(limit=13, ptype=ptype)
         # If user-provided title has fewer than 2 words, prefer generated
